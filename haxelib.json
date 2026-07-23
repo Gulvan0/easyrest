@@ -1,0 +1,13 @@
+{
+    "name": "easyrest",
+    "url": "",
+    "license": "MIT",
+    "version": "0.1.0",
+    "classPath": "src/",
+    "description": "A thin REST client built on typed, JSON-(un)serializable request/response operations.",
+    "contributors": [],
+    "dependencies": {
+        "jsonmodel": "",
+        "http": ""
+    }
+}
