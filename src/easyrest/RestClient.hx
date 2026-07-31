@@ -12,8 +12,8 @@ using morestd.extensions.MapExtension;
 using morestd.extensions.StringExtension;
 
 private typedef RestOpInterface<Resp> = {
-	var path(default, null):String;
-	var method(default, null):HttpMethod;
+	final path:String;
+	final method:HttpMethod;
 	function deserializeResponse(bodyStr:String):Resp;
 }
 
@@ -67,7 +67,8 @@ class RestClient
 				}
 			},
 			error -> {
-				onHttpError(error);
+				if (onHttpError != null)
+					onHttpError(error);
 			}
 		);
 	}
