@@ -5,8 +5,10 @@ import jsonmodel.JsonSerializable;
 import jsonmodel.exceptions.UnserializationException;
 import easyrest.exceptions.GetPayloadProvidedException;
 import http.HttpMethod;
-import http.HttpResponse;
+import http.HttpError;
 import http.HttpClient;
+import http.StandardHeaders;
+import http.ContentTypes;
 
 using morestd.extensions.MapExtension;
 using morestd.extensions.StringExtension;
@@ -36,7 +38,7 @@ class RestClient
 	public function execute<RequestPayloadType:JsonSerializable, ResponsePayloadType>(
 		operation:RestOpInterface<ResponsePayloadType>,
 		onResponse:ResponsePayloadType->Void,
-		onHttpError:HttpResponse<Dynamic>->Void = null,
+		onHttpError:HttpError->Void = null,
 		pathParams:Map<String, String> = null,
 		queryParams:Map<String, Any> = null,
 		body:RequestPayloadType = null,
@@ -52,7 +54,11 @@ class RestClient
 		var request:HttpRequest = new HttpRequest(url);
 		request.method = operation.method;
 
-		httpClient.makeRequest(request, serializedRequestPayload, queryParams, getHeaders(headers)).then(
+		var finalHeaders:Map<String, String> = getHeaders(headers);
+		if (serializedRequestPayload != null && !finalHeaders.exists(StandardHeaders.ContentType))
+			finalHeaders.set(StandardHeaders.ContentType, ContentTypes.ApplicationJson);
+
+		httpClient.makeRequest(request, serializedRequestPayload, queryParams, finalHeaders).then(
 			response -> {
 				try
 				{
@@ -63,7 +69,12 @@ class RestClient
 				{
 					trace(exception);
 					if (onHttpError != null)
-						onHttpError(response);
+					{
+						var deserializationError:HttpError = new HttpError("Failed to deserialize response", response.httpStatus);
+						deserializationError.body = response.body;
+						deserializationError.headers = response.headers;
+						onHttpError(deserializationError);
+					}
 				}
 			},
 			error -> {
