@@ -13,6 +13,9 @@ import http.ContentTypes;
 using morestd.extensions.MapExtension;
 using morestd.extensions.StringExtension;
 
+/** Receives a response's headers (null if none arrived) and the local Unix times, in ms, the request was sent and the response received **/
+typedef ResponseObserver = (headers:Null<Map<String, Any>>, sentAtMs:Float, receivedAtMs:Float)->Void;
+
 private typedef RestOpInterface<Resp> = {
 	final path:String;
 	final method:HttpMethod;
@@ -24,6 +27,7 @@ class RestClient
 	private var baseUrl:String;
 	private var httpClient:HttpClient = new HttpClient();
 	private var commonHeaderRetrievers:Array<()->Map<String, String>> = [];
+	private var responseObservers:Array<ResponseObserver> = [];
 
 	private function getHeaders(explicitHeaders:Null<Map<String, String>> = null):Map<String, String>
 	{
@@ -58,8 +62,10 @@ class RestClient
 		if (serializedRequestPayload != null && !finalHeaders.exists(StandardHeaders.ContentType))
 			finalHeaders.set(StandardHeaders.ContentType, ContentTypes.ApplicationJson);
 
+		var sentAtMs:Float = std.Date.now().getTime();
 		httpClient.makeRequest(request, serializedRequestPayload, queryParams, finalHeaders).then(
 			response -> {
+				notifyResponseObservers(response.headers, sentAtMs);
 				try
 				{
 					var parsedResponse:ResponsePayloadType = operation.deserializeResponse(response.bodyAsString);
@@ -78,10 +84,18 @@ class RestClient
 				}
 			},
 			error -> {
+				notifyResponseObservers(error.headers, sentAtMs);
 				if (onHttpError != null)
 					onHttpError(error);
 			}
 		);
+	}
+
+	private function notifyResponseObservers(headers:Null<Map<String, Any>>, sentAtMs:Float)
+	{
+		var receivedAtMs:Float = std.Date.now().getTime();
+		for (observer in responseObservers)
+			observer(headers, sentAtMs, receivedAtMs);
 	}
 
 	public function addCommonHeaderRetriever(retriever:()->Map<String, String>)
@@ -92,6 +106,17 @@ class RestClient
 	public function removeCommonHeaderRetriever(retriever:()->Map<String, String>)
 	{
 		commonHeaderRetrievers.remove(retriever);
+	}
+
+	/** Called on every response, error responses included **/
+	public function addResponseObserver(observer:ResponseObserver)
+	{
+		responseObservers.push(observer);
+	}
+
+	public function removeResponseObserver(observer:ResponseObserver)
+	{
+		responseObservers.remove(observer);
 	}
 
 	public function new(baseUrl:String)
